@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Buscar Cantor</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    .search-container {
+      width: 100%;
+      max-width: 500px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    input, button {
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      background-color: #007BFF;
+      color: white;
+      cursor: pointer;
+      border: none;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    #result {
+      margin-top: 20px;
+      background: white;
+      padding: 15px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 500px;
+    }
+
+    ul {
+      padding-left: 20px;
+    }
+
+    @media (max-width: 600px) {
+      input, button {
+        font-size: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Buscar Cantor</h1>
+  <div class="search-container">
+    <input type="text" id="artistName" placeholder="Digite o nome do cantor">
+    <button onclick="searchArtist()">Buscar</button>
+  </div>
+
+  <div id="result"></div>
+
+  <script>
+    async function searchArtist() {
+      const name = document.getElementById('artistName').value.trim();
+      const resultDiv = document.getElementById('result');
+
+      if (!name) {
+        resultDiv.innerHTML = '<p>Por favor, digite um nome.</p>';
+        return;
+      }
+
+      resultDiv.innerHTML = 'Carregando...';
+
+      try {
+        // Buscar artista
+        const artistRes = await fetch(`https://musicbrainz.org/ws/2/artist/?query=artist:${encodeURIComponent(name)}&fmt=json`, {
+          headers: { 'User-Agent': 'MeuApp/1.0 (meuemail@exemplo.com)' }
+        });
+        const artistData = await artistRes.json();
+
+        if (!artistData.artists || artistData.artists.length === 0) {
+          resultDiv.innerHTML = '<p>Nenhum artista encontrado.</p>';
+          return;
+        }
+
+        const artist = artistData.artists[0];
+        const artistId = artist.id;
+
+        // Buscar álbuns
+        const albumsRes = await fetch(`https://musicbrainz.org/ws/2/release-group?artist=${artistId}&type=album&fmt=json`);
+        const albumsData = await albumsRes.json();
+
+        // Buscar gêneros e links externos
+        const detailsRes = await fetch(`https://musicbrainz.org/ws/2/artist/${artistId}?inc=genres+url-rels&fmt=json`);
+        const detailsData = await detailsRes.json();
+
+        // Montar resultado
+        resultDiv.innerHTML = `
+          <h2>${artist.name}</h2>
+          <p><strong>Tipo:</strong> ${artist.type || 'N/A'}</p>
+          <p><strong>País:</strong> ${artist.country || 'N/A'}</p>
+          <p><strong>Gêneros:</strong> ${detailsData.genres?.map(g => g.name).join(', ') || 'N/A'}</p>
+          <p><strong>Links:</strong></p>
+          <ul>
+            ${
+              detailsData.relations?.filter(r => r.type === 'official homepage' || r.type === 'wikipedia')
+              .map(r => `<li><a href="${r.url.resource}" target="_blank">${r.type}</a></li>`).join('')
+              || '<li>Nenhum link encontrado</li>'
+            }
+          </ul>
+          <p><strong>Álbuns:</strong></p>
+          <ul>
+            ${
+              albumsData['release-groups']?.map(a => `<li>${a.title} (${a['first-release-date'] || 'Data desconhecida'})</li>`).join('')
+              || '<li>Nenhum álbum encontrado</li>'
+            }
+          </ul>
+        `;
+      } catch (error) {
+        resultDiv.innerHTML = `<p>Erro ao buscar dados: ${error.message}</p>`;
+      }
+    }
+  </script>
+</body>
+</html>
